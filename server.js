@@ -467,6 +467,33 @@ app.post('/payment/webhook', express.json(), async (req, res) => {
 // ─────────────────────────────────────────────
 // HEALTHCHECK
 // ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// PUBLIC: Analyze text (no auth, for frontend demo)
+// ─────────────────────────────────────────────
+app.post('/analyze-text', express.json({ limit: '2mb' }), async (req, res) => {
+  const { text, filename } = req.body;
+  if (!text || text.length < 100) {
+    return res.status(400).json({ error: 'Teks terlalu pendek atau kosong' });
+  }
+  try {
+    const prompt = buildAnalysisPrompt(text.substring(0, 20000), filename || 'annual-report.pdf');
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const raw = message.content[0].text;
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('Format tidak valid');
+    const result = JSON.parse(match[0]);
+    return res.json({ result });
+  } catch (err) {
+    console.error('analyze-text error:', err);
+    return res.status(500).json({ error: 'Gagal menganalisis: ' + err.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', env: process.env.NODE_ENV, timestamp: new Date().toISOString() });
 });
